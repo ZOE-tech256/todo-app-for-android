@@ -1,0 +1,32 @@
+# IDE files and directories
+.idea/
+.gradle/
+**/build/
+local.properties
+*.iml
+*.hprof
+*.keystore
+*.log
+
+# Android Studio captures folder
+captures/
+
+# Generated files
+**/generated/
+
+# Local configuration files (if any, add them here)
+# Example:
+# .env
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.jar
+*.lock
