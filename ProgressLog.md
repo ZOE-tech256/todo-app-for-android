@@ -112,3 +112,33 @@
     *   `app/build.gradle.kts`: `material-icons-extended` 依存関係の追加。
     *   `gradle/libs.versions.toml`: `material-icons-extended` のバージョンとライブラリ定義の追加。
 
+## 2025-09-21 (今日の日付に置き換えてください)
+
+### タスクへの期限日と完了日の追加
+
+*   **データモデルの更新 (`Task.kt`)**:
+    *   `Task` データクラスに、期限日を保存する `deadline: Long?` と完了日を保存する `completionDate: Long?` プロパティ（どちらもNULL許容のタイムスタンプ）を追加しました。
+*   **データベーススキーマの更新とマイグレーション (`AppDatabase.kt`)**:
+    *   Roomデータベースのバージョンを `1` から `2` に更新しました。
+    *   バージョン1から2へのマイグレーションパス (`MIGRATION_1_2`) を作成し、`tasks` テーブルに `deadline` (INTEGER NULLABLE) と `completionDate` (INTEGER NULLABLE) カラムを追加するSQLを定義しました。
+    *   データベースビルダーに `.addMigrations(MIGRATION_1_2)` を追加して、スキーマ更新を適用しました。
+*   **ViewModelの更新 (`TodoViewModel.kt`)**:
+    *   `addTask` メソッドのシグネチャを `addTask(title: String, deadline: Long? = null)` に変更し、タスク追加時にオプションで期限日を受け取れるようにしました。新しいタスク作成時に `deadline` を設定します。
+    *   `toggleTaskCompletion` メソッドを更新し、タスクの完了状態が変更された際に `completionDate` を自動的に設定またはクリアするようにしました:
+        *   完了時: `completionDate` に現在のタイムスタンプを設定。
+        *   未完了に戻した時: `completionDate` を `null` に設定。
+*   **UIの更新 (`MainActivity.kt`)**:
+    *   **日付フォーマットヘルパー関数追加**: `Long` 型のタイムスタンプを "yyyy/MM/dd" 形式の文字列に変換する `toFormattedDateString()` 拡張関数をトップレベルに追加しました。
+    *   **タスク追加ダイアログの機能拡張 (`AddTaskDialog`)**:
+        *   `onTaskAdd` コールバックを `(String, Long?) -> Unit` に変更し、期限日も渡せるようにしました。
+        *   `DatePicker` と `DatePickerDialog` (Material 3) を使用して、ユーザーが期限日を選択できるUIを追加しました。
+        *   選択された期限日はダイアログ内に表示され、タスク追加時にViewModelへ渡されます。
+        *   必要な `@ExperimentalMaterial3Api` アノテーションと関連import文を追加しました。
+    *   **タスクアイテム表示の更新 (`TaskItem`)**:
+        *   タスクのタイトル下に、設定されていれば「期限: (日付)」および「完了: (日付)」を表示するように変更しました。
+        *   日付表示は `bodySmall` スタイルを使用し、視覚的な階層をつけました。
+        *   日付表示部分のインデント調整を行いました。
+    *   **`TodoScreen` の呼び出し更新**: `AddTaskDialog` の呼び出し箇所で、新しい `onTaskAdd` シグネチャに合わせて `todoViewModel.addTask(title, deadline)` を呼び出すように修正しました。
+    *   **プレビューの更新**: `AddTaskDialogPreview` と `TaskItemPreview` (`TaskItemCompletedPreview` を含む) に、新しいパラメータやサンプルデータを反映させました。
+*   **動作確認**: 期限日の設定、タスクアイテムへの期限日と完了日の表示、完了状態変更に伴う完了日の更新が期待通りに動作することを確認しました。
+

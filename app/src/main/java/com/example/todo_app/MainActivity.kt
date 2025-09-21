@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape // 角丸用
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle // 完了済みアイコン
+import androidx.compose.material.icons.filled.DateRange // DateRange アイコン用
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked // 未完了アイコン
 import androidx.compose.material3.AlertDialog
@@ -26,7 +27,8 @@ import androidx.compose.material3.Button // AddTaskDialog で使用
 import androidx.compose.material3.Card // Cardをインポート
 import androidx.compose.material3.CardDefaults // CardDefaultsをインポート
 import androidx.compose.material3.CenterAlignedTopAppBar // CenterAlignedTopAppBar をインポート
-// import androidx.compose.material3.Checkbox // TaskItemから削除
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +42,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset // tabIndica
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton // AddTaskDialog で使用
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +56,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.todo_app.ui.theme.Todo_AppTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+// 日付フォーマット用のヘルパー関数
+fun Long.toFormattedDateString(): String {
+    val sdf = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+    return sdf.format(Date(this))
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +78,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// TaskFilterTabs Composable の Tab テキストを変更
 @Composable
 fun TaskFilterTabs(
     currentFilter: FilterType,
@@ -88,7 +99,7 @@ fun TaskFilterTabs(
         }
     ) {
         filters.forEachIndexed { index, filterType ->
-            val tabText = when (filterType) { // when 式でテキストを決定
+            val tabText = when (filterType) {
                 FilterType.ALL -> "すべて"
                 FilterType.ACTIVE -> "未完了"
                 FilterType.COMPLETED -> "完了済"
@@ -98,7 +109,7 @@ fun TaskFilterTabs(
                 onClick = { onFilterSelected(filterType) },
                 text = {
                     Text(
-                        text = tabText, // 変更後のテキストを使用
+                        text = tabText,
                         color = if (selectedTabIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -163,8 +174,8 @@ fun TodoScreen(
         if (showDialog) {
             AddTaskDialog(
                 onDismissRequest = { showDialog = false },
-                onTaskAdd = { title ->
-                    todoViewModel.addTask(title)
+                onTaskAdd = { title, deadline -> // deadline を受け取るように変更
+                    todoViewModel.addTask(title, deadline) // deadline を ViewModel に渡す
                     showDialog = false
                 }
             )
@@ -172,32 +183,86 @@ fun TodoScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // DatePicker と DatePickerDialog のために追加
 @Composable
 fun AddTaskDialog(
     onDismissRequest: () -> Unit,
-    onTaskAdd: (String) -> Unit,
+    onTaskAdd: (title: String, deadline: Long?) -> Unit, // deadline パラメータを追加
     modifier: Modifier = Modifier
 ) {
     var taskTitle by remember { mutableStateOf("") }
+    var deadlineMillis by remember { mutableStateOf<Long?>(null) } // 選択された期限日 (タイムスタンプ)
+    var showDatePickerDialog by remember { mutableStateOf(false) } // DatePickerDialog の表示状態
+
+    // DatePicker の状態を管理
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = deadlineMillis ?: System.currentTimeMillis() // 初期選択日
+    )
+
+    if (showDatePickerDialog) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deadlineMillis = datePickerState.selectedDateMillis
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("キャンセル")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     AlertDialog(
         modifier = modifier,
         onDismissRequest = onDismissRequest,
         title = { Text("新しいタスクを追加") },
         text = {
-            OutlinedTextField(
-                value = taskTitle,
-                onValueChange = { taskTitle = it },
-                label = { Text("タスク名") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column { // 複数の要素を縦に並べるために Column を使用
+                OutlinedTextField(
+                    value = taskTitle,
+                    onValueChange = { taskTitle = it },
+                    label = { Text("タスク名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp)) // タスク名と期限日の間にスペース
+
+                // 期限日表示と選択ボタン
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDatePickerDialog = true } // このRowをクリックでダイアログ表示
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = deadlineMillis?.toFormattedDateString() ?: "期限日を設定",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.DateRange, // カレンダーアイコン
+                        contentDescription = "期限日を選択",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (taskTitle.isNotBlank()) {
-                        onTaskAdd(taskTitle)
+                        onTaskAdd(taskTitle, deadlineMillis) // deadlineMillis も渡す
                     }
                 },
                 enabled = taskTitle.isNotBlank()
@@ -232,32 +297,55 @@ fun TaskItem(
                 .padding(horizontal = 16.dp, vertical = 8.dp), 
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f) 
-                    .clickable { onToggleComplete() } 
-                    .padding(vertical = 4.dp), 
-                verticalAlignment = Alignment.CenterVertically
+            // 左側のタスク情報エリア (アイコン、タイトル、日付)
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    imageVector = if (task.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                    contentDescription = if (task.isCompleted) "完了済み" else "未完了",
-                    tint = if (task.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp)
-                )
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        textDecoration = null
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    modifier = Modifier
+                        .clickable { onToggleComplete() } 
+                        .padding(vertical = 4.dp), // クリック領域のためのパディング
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (task.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = if (task.isCompleted) "完了済み" else "未完了",
+                        tint = if (task.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                // 期限日と完了日の表示
+                // アイコンのインデントに合わせて少し右にずらす
+                Row(modifier = Modifier.padding(start = 40.dp)) { // Icon size (24.dp) + padding (16.dp) = 40.dp
+                    if (task.deadline != null) {
+                        Text(
+                            text = "期限: ${task.deadline.toFormattedDateString()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 8.dp) // 完了日との間にスペース
+                        )
+                    }
+                    if (task.isCompleted && task.completionDate != null) {
+                        Text(
+                            text = "完了: ${task.completionDate!!.toFormattedDateString()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary // 完了日はプライマリーカラーなど
+                        )
+                    }
+                }
             }
+
+            // 右側の削除ボタン
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = "削除",
-                    tint = MaterialTheme.colorScheme.error 
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -285,7 +373,7 @@ fun TodoScreenPreview() {
 @Composable
 fun AddTaskDialogPreview() {
     Todo_AppTheme {
-        AddTaskDialog(onDismissRequest = {}, onTaskAdd = {})
+        AddTaskDialog(onDismissRequest = {}, onTaskAdd = { _, _ -> /* title, deadline */ })
     }
 }
 
@@ -294,7 +382,7 @@ fun AddTaskDialogPreview() {
 fun TaskItemPreview() {
     Todo_AppTheme {
         TaskItem(
-            task = Task(1, "プレビュータスク", false),
+            task = Task(1, "プレビュータスク", false, deadline = System.currentTimeMillis() + 86400000L), // 1日後を期限に
             onToggleComplete = {},
             onDelete = {} 
         )
@@ -306,7 +394,7 @@ fun TaskItemPreview() {
 fun TaskItemCompletedPreview() {
     Todo_AppTheme {
         TaskItem(
-            task = Task(2, "完了済みプレビュータスク", true),
+            task = Task(2, "完了済みプレビュータスク", true, deadline = System.currentTimeMillis() - 86400000L, completionDate = System.currentTimeMillis()), // 1日前に期限切れ、今日完了
             onToggleComplete = {},
             onDelete = {} 
         )

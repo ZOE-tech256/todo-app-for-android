@@ -4,32 +4,39 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Task::class], version = 1, exportSchema = false)
+@Database(entities = [Task::class], version = 2, exportSchema = false) // バージョンを2に上げる
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
 
     companion object {
-        // @Volatile アノテーションは、この変数が複数のスレッドからアクセスされる可能性があり、
-        // あるスレッドによる変更が即座に他のスレッドから見えるようにします。
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        // バージョン1から2へのマイグレーション
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // tasksテーブルにdeadlineカラム (INTEGER NULLABLE) を追加
+                db.execSQL("ALTER TABLE tasks ADD COLUMN deadline INTEGER DEFAULT NULL")
+                // tasksテーブルにcompletionDateカラム (INTEGER NULLABLE) を追加
+                db.execSQL("ALTER TABLE tasks ADD COLUMN completionDate INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
-            // INSTANCEがnullであれば、同期ブロック内でデータベースインスタンスを作成します。
-            // これにより、複数のスレッドが同時にデータベースインスタンスを作成しようとするのを防ぎます。
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "task_database" // データベースファイル名
+                    "task_database"
                 )
-                // ここでマイグレーション戦略を追加することも可能ですが、今回は省略します。
-                // .fallbackToDestructiveMigration() // スキーマ変更時にデータを破棄して再作成（開発初期段階向け）
+                .addMigrations(MIGRATION_1_2) // 作成したマイグレーションを追加
+                // .fallbackToDestructiveMigration() // マイグレーションに失敗した場合のフォールバック (本番では非推奨)
                 .build()
                 INSTANCE = instance
-                // 作成したインスタンスを返す
                 instance
             }
         }

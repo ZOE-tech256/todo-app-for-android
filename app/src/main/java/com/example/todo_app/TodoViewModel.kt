@@ -39,27 +39,38 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
         _currentFilter.value = filterType
     }
 
-    fun addTask(title: String) {
+    // addTaskメソッドにdeadlineパラメータを追加
+    fun addTask(title: String, deadline: Long? = null) {
         viewModelScope.launch {
-            val newTask = Task(title = title)
+            // deadline を持つ Task オブジェクトを作成
+            val newTask = Task(title = title, deadline = deadline)
             taskDao.insertTask(newTask)
         }
     }
 
     fun toggleTaskCompletion(taskId: Int) {
         viewModelScope.launch {
-            // DAOから現在の全タスクリストを一度だけ取得して処理する
             val allTasksList = taskDao.getAllTasks().firstOrNull() ?: emptyList()
             val taskToUpdate = allTasksList.find { it.id == taskId }
             taskToUpdate?.let {
-                taskDao.updateTask(it.copy(isCompleted = !it.isCompleted))
+                val newCompletionState = !it.isCompleted
+                val newCompletionDate = if (newCompletionState) {
+                    System.currentTimeMillis() // 完了したら現在時刻を設定
+                } else {
+                    null // 未完了に戻したらnullを設定
+                }
+                taskDao.updateTask(
+                    it.copy(
+                        isCompleted = newCompletionState,
+                        completionDate = newCompletionDate // completionDateを更新
+                    )
+                )
             }
         }
     }
 
     fun deleteTask(taskId: Int) {
         viewModelScope.launch {
-            // DAOから現在の全タスクリストを一度だけ取得して処理する
             val allTasksList = taskDao.getAllTasks().firstOrNull() ?: emptyList()
             val taskToDelete = allTasksList.find { it.id == taskId }
             taskToDelete?.let {
