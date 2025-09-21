@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull // firstOrNull をインポート
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -16,13 +16,11 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
 
     private val taskDao = AppDatabase.getDatabase(application).taskDao()
 
-    // 現在のフィルター状態を保持するStateFlow
     private val _currentFilter = MutableStateFlow(FilterType.ALL)
     val currentFilter: StateFlow<FilterType> = _currentFilter.asStateFlow()
 
-    // フィルターされたタスクリストを公開するStateFlow
     val tasks: StateFlow<List<Task>> = taskDao.getAllTasks()
-        .combine(_currentFilter) { allTasks, filter -> // combineでタスクリストとフィルターを組み合わせる
+        .combine(_currentFilter) { allTasks, filter ->
             when (filter) {
                 FilterType.ALL -> allTasks
                 FilterType.ACTIVE -> allTasks.filter { !it.isCompleted }
@@ -39,10 +37,8 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
         _currentFilter.value = filterType
     }
 
-    // addTaskメソッドにdeadlineパラメータを追加
     fun addTask(title: String, deadline: Long? = null) {
         viewModelScope.launch {
-            // deadline を持つ Task オブジェクトを作成
             val newTask = Task(title = title, deadline = deadline)
             taskDao.insertTask(newTask)
         }
@@ -50,19 +46,18 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleTaskCompletion(taskId: Int) {
         viewModelScope.launch {
-            val allTasksList = taskDao.getAllTasks().firstOrNull() ?: emptyList()
-            val taskToUpdate = allTasksList.find { it.id == taskId }
+            val taskToUpdate = taskDao.getAllTasks().firstOrNull()?.find { it.id == taskId }
             taskToUpdate?.let {
                 val newCompletionState = !it.isCompleted
                 val newCompletionDate = if (newCompletionState) {
-                    System.currentTimeMillis() // 完了したら現在時刻を設定
+                    System.currentTimeMillis()
                 } else {
-                    null // 未完了に戻したらnullを設定
+                    null
                 }
                 taskDao.updateTask(
                     it.copy(
                         isCompleted = newCompletionState,
-                        completionDate = newCompletionDate // completionDateを更新
+                        completionDate = newCompletionDate
                     )
                 )
             }
@@ -71,10 +66,25 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTask(taskId: Int) {
         viewModelScope.launch {
-            val allTasksList = taskDao.getAllTasks().firstOrNull() ?: emptyList()
-            val taskToDelete = allTasksList.find { it.id == taskId }
+            val taskToDelete = taskDao.getAllTasks().firstOrNull()?.find { it.id == taskId }
             taskToDelete?.let {
                 taskDao.deleteTask(it)
+            }
+        }
+    }
+
+    // ★ タスクの詳細（タイトルと期限日）を更新するメソッドを追加
+    fun updateTaskDetails(taskId: Int, newTitle: String, newDeadline: Long?) {
+        viewModelScope.launch {
+            val taskToUpdate = taskDao.getAllTasks().firstOrNull()?.find { it.id == taskId }
+            taskToUpdate?.let {
+                // isCompleted と completionDate は変更せずに、title と deadline のみ更新
+                taskDao.updateTask(
+                    it.copy(
+                        title = newTitle,
+                        deadline = newDeadline
+                    )
+                )
             }
         }
     }

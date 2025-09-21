@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle // 完了済みアイコン
 import androidx.compose.material.icons.filled.DateRange // DateRange アイコン用
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit // 編集アイコン用
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked // 未完了アイコン
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button // AddTaskDialog で使用
@@ -44,6 +45,7 @@ import androidx.compose.material3.TextButton // AddTaskDialog で使用
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -127,7 +129,9 @@ fun TodoScreen(
 ) {
     val tasks by todoViewModel.tasks.collectAsStateWithLifecycle()
     val currentFilter by todoViewModel.currentFilter.collectAsStateWithLifecycle()
-    var showDialog by remember { mutableStateOf(false) }
+    var showAddTaskDialog by remember { mutableStateOf(false) }
+    var showEditTaskDialog by remember { mutableStateOf(false) }
+    var taskToEdit by remember { mutableStateOf<Task?>(null) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -135,7 +139,10 @@ fun TodoScreen(
             CenterAlignedTopAppBar(
                 title = { Text("Todoアプリ") },
                 actions = {
-                    IconButton(onClick = { showDialog = true }) {
+                    IconButton(onClick = {
+                        taskToEdit = null // 新規追加モードに設定
+                        showAddTaskDialog = true
+                    }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = "タスク追加",
@@ -164,39 +171,72 @@ fun TodoScreen(
                     TaskItem(
                         task = task,
                         onToggleComplete = { todoViewModel.toggleTaskCompletion(task.id) },
-                        onDelete = { todoViewModel.deleteTask(task.id) }, 
+                        onDelete = { todoViewModel.deleteTask(task.id) },
+                        onEditClick = { // 編集クリック時の処理
+                            taskToEdit = task // 編集対象のタスクを設定
+                            showEditTaskDialog = true
+                        },
                         modifier = Modifier.padding(vertical = 6.dp)
                     )
                 }
             }
         }
 
-        if (showDialog) {
-            AddTaskDialog(
-                onDismissRequest = { showDialog = false },
-                onTaskAdd = { title, deadline -> // deadline を受け取るように変更
-                    todoViewModel.addTask(title, deadline) // deadline を ViewModel に渡す
-                    showDialog = false
+        // タスク追加ダイアログ
+        if (showAddTaskDialog) {
+            TaskDialog( // AddTaskDialog から TaskDialog に名前変更 (推奨) またはそのまま
+                existingTask = null, // 新規追加なので existingTask は null
+                onDismissRequest = { showAddTaskDialog = false },
+                onConfirm = { _, title, deadline -> // id は使わない
+                    todoViewModel.addTask(title, deadline)
+                    showAddTaskDialog = false
                 }
             )
+        }
+
+        // タスク編集ダイアログ
+        taskToEdit?.let { currentTaskToEdit -> // taskToEditがnullでない場合のみ表示
+            if (showEditTaskDialog) {
+                TaskDialog( // AddTaskDialog から TaskDialog に名前変更 (推奨) またはそのまま
+                    existingTask = currentTaskToEdit, //編集対象のタスクを渡す
+                    onDismissRequest = { showEditTaskDialog = false },
+                    onConfirm = { id, title, deadline ->
+                        todoViewModel.updateTaskDetails(id!!, title, deadline) // id は currentTaskToEdit.id
+                        showEditTaskDialog = false
+                    }
+                )
+            }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class) // DatePicker と DatePickerDialog のために追加
+// AddTaskDialog を TaskDialog にリネームし、編集機能に対応
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTaskDialog(
+fun TaskDialog( // AddTaskDialog から TaskDialog に名前変更 (推奨)
+    existingTask: Task? = null, // 編集対象のタスク (オプショナル)
     onDismissRequest: () -> Unit,
-    onTaskAdd: (title: String, deadline: Long?) -> Unit, // deadline パラメータを追加
+    onConfirm: (id: Int?, title: String, deadline: Long?) -> Unit, // コールバック変更
     modifier: Modifier = Modifier
 ) {
     var taskTitle by remember { mutableStateOf("") }
-    var deadlineMillis by remember { mutableStateOf<Long?>(null) } // 選択された期限日 (タイムスタンプ)
-    var showDatePickerDialog by remember { mutableStateOf(false) } // DatePickerDialog の表示状態
+    var deadlineMillis by remember { mutableStateOf<Long?>(null) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
 
-    // DatePicker の状態を管理
+    // existingTask が変更されたら、ダイアログの初期値を設定
+    LaunchedEffect(existingTask) {
+        if (existingTask != null) {
+            taskTitle = existingTask.title
+            deadlineMillis = existingTask.deadline
+        } else {
+            // 新規追加モードの場合、フィールドをクリア (オプション、通常はrememberの初期値でOK)
+            taskTitle = ""
+            deadlineMillis = null
+        }
+    }
+
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = deadlineMillis ?: System.currentTimeMillis() // 初期選択日
+        initialSelectedDateMillis = deadlineMillis ?: (existingTask?.deadline ?: System.currentTimeMillis()) // 初期選択日を調整
     )
 
     if (showDatePickerDialog) {
@@ -208,14 +248,10 @@ fun AddTaskDialog(
                         deadlineMillis = datePickerState.selectedDateMillis
                         showDatePickerDialog = false
                     }
-                ) {
-                    Text("OK")
-                }
+                ) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePickerDialog = false }) {
-                    Text("キャンセル")
-                }
+                TextButton(onClick = { showDatePickerDialog = false }) { Text("キャンセル") }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -225,9 +261,9 @@ fun AddTaskDialog(
     AlertDialog(
         modifier = modifier,
         onDismissRequest = onDismissRequest,
-        title = { Text("新しいタスクを追加") },
+        title = { Text(if (existingTask != null) "タスクを編集" else "新しいタスクを追加") }, // タイトル変更
         text = {
-            Column { // 複数の要素を縦に並べるために Column を使用
+            Column {
                 OutlinedTextField(
                     value = taskTitle,
                     onValueChange = { taskTitle = it },
@@ -235,13 +271,11 @@ fun AddTaskDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(16.dp)) // タスク名と期限日の間にスペース
-
-                // 期限日表示と選択ボタン
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showDatePickerDialog = true } // このRowをクリックでダイアログ表示
+                        .clickable { showDatePickerDialog = true }
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -251,7 +285,7 @@ fun AddTaskDialog(
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Icon(
-                        imageVector = Icons.Filled.DateRange, // カレンダーアイコン
+                        imageVector = Icons.Filled.DateRange,
                         contentDescription = "期限日を選択",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -262,18 +296,16 @@ fun AddTaskDialog(
             Button(
                 onClick = {
                     if (taskTitle.isNotBlank()) {
-                        onTaskAdd(taskTitle, deadlineMillis) // deadlineMillis も渡す
+                        onConfirm(existingTask?.id, taskTitle, deadlineMillis) // onConfirm を呼び出し
                     }
                 },
                 enabled = taskTitle.isNotBlank()
             ) {
-                Text("追加")
+                Text(if (existingTask != null) "保存" else "追加") // ボタンテキスト変更
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("キャンセル")
-            }
+            TextButton(onClick = onDismissRequest) { Text("キャンセル") }
         }
     )
 }
@@ -283,6 +315,7 @@ fun TaskItem(
     task: Task,
     onToggleComplete: () -> Unit,
     onDelete: () -> Unit, 
+    onEditClick: () -> Unit, // ★ 編集クリックコールバックを追加
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -340,7 +373,14 @@ fun TaskItem(
                 }
             }
 
-            // 右側の削除ボタン
+            // 右側のアクションボタン (編集と削除)
+            IconButton(onClick = onEditClick) { // ★ 編集ボタン
+                Icon(
+                    Icons.Filled.Edit, // androidx.compose.material.icons.filled.Edit をインポート
+                    contentDescription = "編集",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant // 通常の色
+                )
+            }
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,
@@ -369,11 +409,28 @@ fun TodoScreenPreview() {
     }
 }
 
+// プレビュー用の TaskDialog の呼び出しも更新
 @Preview(showBackground = true)
 @Composable
-fun AddTaskDialogPreview() {
+fun TaskDialogPreview_AddMode() { // プレビュー名を変更して区別
     Todo_AppTheme {
-        AddTaskDialog(onDismissRequest = {}, onTaskAdd = { _, _ -> /* title, deadline */ })
+        TaskDialog(
+            existingTask = null,
+            onDismissRequest = {},
+            onConfirm = { _, _, _ -> }
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TaskDialogPreview_EditMode() { // 編集モードのプレビュー追加
+    Todo_AppTheme {
+        TaskDialog(
+            existingTask = Task(id = 1, title = "既存のタスク", deadline = System.currentTimeMillis() + 86400000L),
+            onDismissRequest = {},
+            onConfirm = { _, _, _ -> }
+        )
     }
 }
 
@@ -384,7 +441,8 @@ fun TaskItemPreview() {
         TaskItem(
             task = Task(1, "プレビュータスク", false, deadline = System.currentTimeMillis() + 86400000L), // 1日後を期限に
             onToggleComplete = {},
-            onDelete = {} 
+            onDelete = {}, 
+            onEditClick = {} // ★ 追加
         )
     }
 }
@@ -396,7 +454,8 @@ fun TaskItemCompletedPreview() {
         TaskItem(
             task = Task(2, "完了済みプレビュータスク", true, deadline = System.currentTimeMillis() - 86400000L, completionDate = System.currentTimeMillis()), // 1日前に期限切れ、今日完了
             onToggleComplete = {},
-            onDelete = {} 
+            onDelete = {}, 
+            onEditClick = {} // ★ 追加
         )
     }
 }

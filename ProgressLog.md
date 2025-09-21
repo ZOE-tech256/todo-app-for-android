@@ -112,7 +112,7 @@
     *   `app/build.gradle.kts`: `material-icons-extended` 依存関係の追加。
     *   `gradle/libs.versions.toml`: `material-icons-extended` のバージョンとライブラリ定義の追加。
 
-## 2025-09-21 (今日の日付に置き換えてください)
+## 2025-09-21
 
 ### タスクへの期限日と完了日の追加
 
@@ -141,4 +141,27 @@
     *   **`TodoScreen` の呼び出し更新**: `AddTaskDialog` の呼び出し箇所で、新しい `onTaskAdd` シグネチャに合わせて `todoViewModel.addTask(title, deadline)` を呼び出すように修正しました。
     *   **プレビューの更新**: `AddTaskDialogPreview` と `TaskItemPreview` (`TaskItemCompletedPreview` を含む) に、新しいパラメータやサンプルデータを反映させました。
 *   **動作確認**: 期限日の設定、タスクアイテムへの期限日と完了日の表示、完了状態変更に伴う完了日の更新が期待通りに動作することを確認しました。
+
+## 2025-09-21
+
+### タスク編集機能の追加
+
+*   **ViewModelの更新 (`TodoViewModel.kt`)**:
+    *   タスクのタイトルと期限日を更新するための `updateTaskDetails(taskId: Int, newTitle: String, newDeadline: Long?)` メソッドを追加しました。
+*   **UIの更新 (`MainActivity.kt`)**:
+    *   **`TaskItem` Composableの変更**:
+        *   編集アイコンボタン (`Icons.Filled.Edit`) と、それをクリックした際のコールバック (`onEditClick`) を追加しました。
+    *   **`TodoScreen` Composableの変更**:
+        *   編集対象のタスク (`taskToEdit`) と編集ダイアログの表示状態 (`showEditTaskDialog`) を管理するための `remember` 変数を追加しました。
+        *   `TaskItem` の `onEditClick` が呼び出された際に、`taskToEdit` と `showEditTaskDialog` を更新するようにしました。
+    *   **`AddTaskDialog` を `TaskDialog` に改名し、編集モードに対応**:
+        *   `existingTask: Task?` パラメータを追加し、編集対象のタスクを受け取れるようにしました。
+        *   `onConfirm: (id: Int?, title: String, deadline: Long?) -> Unit` コールバックに変更し、タスクID（編集時のみ）も渡せるようにしました。
+        *   `LaunchedEffect` を使用して、`existingTask` が提供された場合にダイアログの入力フィールド（タイトル、期限日）に初期値を設定するようにしました。
+        *   ダイアログのタイトル（「タスクを編集」/「新しいタスクを追加」）と確認ボタンのテキスト（「保存」/「追加」）を `existingTask` の有無に応じて動的に変更するようにしました。
+    *   **`TodoScreen` での `TaskDialog` 呼び出し更新**:
+        *   タスク追加時 (`showAddTaskDialog` が true) は `existingTask = null` で `TaskDialog` を呼び出し、`onConfirm` で `todoViewModel.addTask()` を実行します。
+        *   タスク編集時 (`showEditTaskDialog` が true かつ `taskToEdit` が非null) は `existingTask = taskToEdit` で `TaskDialog` を呼び出し、`onConfirm` で `todoViewModel.updateTaskDetails()` を実行します。
+    *   **プレビューの更新**: `TaskDialog` のプレビューを「追加モード」と「編集モード」に分け、`TaskItem` のプレビューに `onEditClick` を追加しました。
+*   **動作確認**: タスク編集アイコンの表示、編集ダイアログによる既存タスクのタイトル・期限日の更新、および既存のタスク追加機能が期待通りに動作することを確認しました。
 
