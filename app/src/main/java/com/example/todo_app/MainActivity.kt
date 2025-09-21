@@ -4,35 +4,41 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable // Cardのクリックイベント用
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column // Column をインポート
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer // Spacer をインポート
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height // height をインポート
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-//import androidx.compose.foundation.layout.width // 必要に応じてwidthをインポート
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape // 角丸用
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle // 完了済みアイコン
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked // 未完了アイコン
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults // ButtonDefaults をインポート
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Button // AddTaskDialog で使用
+import androidx.compose.material3.Card // Cardをインポート
+import androidx.compose.material3.CardDefaults // CardDefaultsをインポート
+import androidx.compose.material3.CenterAlignedTopAppBar // CenterAlignedTopAppBar をインポート
+// import androidx.compose.material3.Checkbox // TaskItemから削除
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton // OutlinedButton をインポート
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab // Tab をインポート
+import androidx.compose.material3.TabRow // TabRow をインポート
+import androidx.compose.material3.TabRowDefaults // TabRowDefaults をインポート
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset // tabIndicatorOffset をインポート
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton // AddTaskDialog で使用
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,7 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDecoration // Textの取り消し線に使う可能性がまだあるので残す
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,44 +66,43 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// 新しいComposable: フィルターボタンを表示する行
+// TaskFilterTabs Composable の Tab テキストを変更
 @Composable
-fun FilterButtonsRow(
+fun TaskFilterTabs(
     currentFilter: FilterType,
     onFilterSelected: (FilterType) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly // ボタンを等間隔に配置
+    val filters = FilterType.values()
+    val selectedTabIndex = currentFilter.ordinal
+
+    TabRow(
+        selectedTabIndex = selectedTabIndex,
+        modifier = modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        indicator = { tabPositions ->
+            TabRowDefaults.Indicator(
+                Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     ) {
-        FilterType.values().forEach { filterType ->
-            val buttonColors = if (currentFilter == filterType) {
-                ButtonDefaults.buttonColors( // 通常のButtonの場合
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                ButtonDefaults.outlinedButtonColors() // OutlinedButtonの場合の色に合わせるか、通常のButtonの色を調整
+        filters.forEachIndexed { index, filterType ->
+            val tabText = when (filterType) { // when 式でテキストを決定
+                FilterType.ALL -> "すべて"
+                FilterType.ACTIVE -> "未完了"
+                FilterType.COMPLETED -> "完了済"
             }
-            // OutlinedButton を使用して、選択されていないものは枠線のみにする
-            if (currentFilter == filterType) {
-                Button(
-                    onClick = { onFilterSelected(filterType) },
-                    colors = buttonColors // 選択されている場合のButtonの色を適用
-                ) {
-                    Text(filterType.name) // ALL, ACTIVE, COMPLETED
+            Tab(
+                selected = selectedTabIndex == index,
+                onClick = { onFilterSelected(filterType) },
+                text = {
+                    Text(
+                        text = tabText, // 変更後のテキストを使用
+                        color = if (selectedTabIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            } else {
-                OutlinedButton(
-                    onClick = { onFilterSelected(filterType) }
-                    // colors = buttonColors // 非選択時のOutlinedButtonの色はデフォルトで良い場合が多い
-                ) {
-                    Text(filterType.name)
-                }
-            }
+            )
         }
     }
 }
@@ -110,46 +115,46 @@ fun TodoScreen(
     todoViewModel: TodoViewModel = viewModel()
 ) {
     val tasks by todoViewModel.tasks.collectAsStateWithLifecycle()
-    val currentFilter by todoViewModel.currentFilter.collectAsStateWithLifecycle() // 現在のフィルターを取得
+    val currentFilter by todoViewModel.currentFilter.collectAsStateWithLifecycle()
     var showDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Todoアプリ") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
+                actions = {
+                    IconButton(onClick = { showDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "タスク追加",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showDialog = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "タスク追加")
-            }
         }
     ) { innerPadding ->
-        Column( // Columnでフィルターボタンとリストを縦に並べる
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp) // 左右のパディングをColumnに適用
+        Column(
+            modifier = Modifier.padding(innerPadding)
         ) {
-            FilterButtonsRow( // フィルターボタンを配置
+            TaskFilterTabs(
                 currentFilter = currentFilter,
-                onFilterSelected = { filterType -> todoViewModel.setFilter(filterType) },
-                modifier = Modifier.padding(top = 8.dp) // 上部に少しパディング
+                onFilterSelected = { filterType -> todoViewModel.setFilter(filterType) }
             )
-            Spacer(modifier = Modifier.height(8.dp)) // フィルターボタンとリストの間に少しスペース
-
-            LazyColumn( // LazyColumnは縦方向のパディングを削除 (Columnで管理するため)
-                // modifier = Modifier.padding(vertical = 16.dp) // Columnに移動または調整
+            LazyColumn(
+                 modifier = Modifier.padding(horizontal = 16.dp)
             ) {
                 items(tasks, key = { task -> task.id }) { task ->
                     TaskItem(
                         task = task,
                         onToggleComplete = { todoViewModel.toggleTaskCompletion(task.id) },
-                        onDelete = { todoViewModel.deleteTask(task.id) }
+                        onDelete = { todoViewModel.deleteTask(task.id) }, 
+                        modifier = Modifier.padding(vertical = 6.dp)
                     )
                 }
             }
@@ -212,38 +217,59 @@ fun AddTaskDialog(
 fun TaskItem(
     task: Task,
     onToggleComplete: () -> Unit,
-    onDelete: () -> Unit,
+    onDelete: () -> Unit, 
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Card(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Checkbox(
-                checked = task.isCompleted,
-                onCheckedChange = { onToggleComplete() }
-            )
-            Text(
-                text = task.title,
-                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "削除")
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp), 
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f) 
+                    .clickable { onToggleComplete() } 
+                    .padding(vertical = 4.dp), 
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (task.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                    contentDescription = if (task.isCompleted) "完了済み" else "未完了",
+                    tint = if (task.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        textDecoration = null
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "削除",
+                    tint = MaterialTheme.colorScheme.error 
+                )
+            }
         }
     }
 }
 
+
 @Preview(showBackground = true)
 @Composable
-fun FilterButtonsRowPreview() {
+fun TaskFilterTabsPreview() {
     Todo_AppTheme {
-        FilterButtonsRow(currentFilter = FilterType.ALL, onFilterSelected = {})
+        TaskFilterTabs(currentFilter = FilterType.ALL, onFilterSelected = {})
     }
 }
 
@@ -263,7 +289,6 @@ fun AddTaskDialogPreview() {
     }
 }
 
-// TaskItemのPreviewも更新または簡略化
 @Preview(showBackground = true)
 @Composable
 fun TaskItemPreview() {
@@ -271,7 +296,7 @@ fun TaskItemPreview() {
         TaskItem(
             task = Task(1, "プレビュータスク", false),
             onToggleComplete = {},
-            onDelete = {}
+            onDelete = {} 
         )
     }
 }
@@ -283,7 +308,7 @@ fun TaskItemCompletedPreview() {
         TaskItem(
             task = Task(2, "完了済みプレビュータスク", true),
             onToggleComplete = {},
-            onDelete = {}
+            onDelete = {} 
         )
     }
 }

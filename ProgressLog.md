@@ -78,3 +78,37 @@
         *   `TodoScreen` 内に `FilterButtonsRow` を配置し、`TodoViewModel` の `currentFilter` を監視して選択状態を反映し、フィルターボタンのクリックで `viewModel.setFilter()` が呼び出されるようにしました。
         *   選択されているフィルターボタンが視覚的に強調表示されるようにしました。
     *   **動作確認**: 各フィルターでのタスク表示、タスク操作（追加、完了/未完了、削除）が期待通りに動作することを確認しました。
+
+## 2025-09-21 
+
+### UI/UX改善と表示テキストの日本語化
+
+*   **全体的なカラースキームの変更**:
+    *   参考画像に合わせた新しい色（`AppLightGray`, `CardWhite`, `AccentBlue` など）を `Color.kt` に定義しました。
+    *   定義した新しい色を `Theme.kt` の `NewLightColorScheme` に適用し、アプリ全体のテーマとして設定しました。 ライトテーマが常に適用されるように `dynamicColor` はデフォルトで `false` に変更しました。
+*   **トップアプリバーの刷新**:
+    *   `CenterAlignedTopAppBar` を使用し、タイトルを中央揃えに変更しました。
+    *   アプリのタイトルを「Tasks」から「Todoアプリ」に日本語化しました (`MainActivity.kt` 内 `TodoScreen`)。
+    *   従来のフローティングアクションボタン（FAB）を廃止し、タスク追加機能をトップアプリバー右端の `IconButton`（「+」アイコン）に変更しました。
+    *   トップアプリバーの背景色をテーマの `surface`（白）、タイトル色を `onSurface`（濃いグレー）に設定しました。
+*   **フィルター表示のタブ化と日本語化**:
+    *   従来のフィルターボタンを表示していた `FilterButtonsRow` Composable を削除し、新たに `TabRow` と `Tab` を使用した `TaskFilterTabs` Composable を作成しました (`MainActivity.kt`)。
+    *   タブのテキストを以下のように日本語化しました:
+        *   "ALL" → "すべて"
+        *   "ACTIVE" → "未完了"
+        *   "COMPLETED" → "完了済"
+    *   選択されたタブにはプライマリーカラー（`AccentBlue`）のインジケーターとテキスト色を適用しました。
+*   **タスクアイテムのカードスタイル化とインタラクション改善**:
+    *   各タスクアイテム (`TaskItem` Composable) を `Card` で囲み、角丸 (`RoundedCornerShape(8.dp)`) と影 (`elevation`) を適用しました。カードの背景色はテーマの `surface`（白）です。
+    *   従来の `Checkbox` を廃止し、タスクの完了状態を示すアイコン（未完了: `Icons.Outlined.RadioButtonUnchecked`、完了: `Icons.Filled.CheckCircle`）をタスクタイトルの前に配置しました。アイコンの色も状態に応じて変わります。
+    *   タスクの完了/未完了の切り替えは、タスクタイトルと状態アイコンを含む領域のクリックで行うように変更しました。
+    *   タスク削除用の `IconButton`（`Icons.Filled.Delete`）を各カードの右端に再配置し、削除機能を維持しました。アイコンの色はテーマの `error` カラーに設定しました。
+*   **依存関係の追加**:
+    *   `Icons.Outlined.RadioButtonUnchecked` アイコンを使用するために、`androidx.compose.material:material-icons-extended` (バージョン `1.7.8`) の依存関係を `gradle/libs.versions.toml` 及び `app/build.gradle.kts` に追加しました。
+*   **関連ファイルの更新概要**:
+    *   `MainActivity.kt`: `TodoScreen`, `TaskFilterTabs`, `TaskItem` の大幅な変更。
+    *   `com.example.todo_app.ui.theme/Color.kt`: 新しい色の定義。
+    *   `com.example.todo_app.ui.theme/Theme.kt`: `NewLightColorScheme` の定義と適用。
+    *   `app/build.gradle.kts`: `material-icons-extended` 依存関係の追加。
+    *   `gradle/libs.versions.toml`: `material-icons-extended` のバージョンとライブラリ定義の追加。
+

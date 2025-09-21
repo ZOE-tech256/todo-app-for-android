@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.iconsExtended) // この行を追記
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.room.runtime) // Roomランタイムを追加
     implementation(libs.androidx.room.ktx)     // Room Kotlin拡張を追加
